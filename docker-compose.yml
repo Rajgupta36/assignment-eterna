@@ -1,6 +1,26 @@
 
 services:
-  # Redis service
+  #database
+  postgres:
+    image: postgres:15-alpine
+    container_name: dex_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=order_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dex_network
+
+  #service
   redis:
     image: redis:7-alpine
     container_name: dex_redis
@@ -17,7 +37,7 @@ services:
     networks:
       - dex_network
 
-  # Backend API service
+  # backend api service
   backend:
     build:
       context: ./backend
@@ -35,14 +55,8 @@ services:
     restart: unless-stopped
     networks:
       - dex_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
-  # Mock DEX Router service
+  # mock dex router service
   mock_dex_router:
     build:
       context: ./mock_dex_router
@@ -57,14 +71,29 @@ services:
     restart: unless-stopped
     networks:
       - dex_network
-    healthcheck:
-      test: ["CMD", "pgrep", "-f", "order_execution_engine"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+
+  # Database service
+  db_service:
+    build:
+      context: ./db-service
+      dockerfile: Dockerfile
+    container_name: dex_db_service
+    environment:
+      - DATABASE_URL=postgres://postgres:password@postgres:5432/order_db
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - dex_network
 
 volumes:
+  postgres_data:
+    driver: local
   redis_data:
     driver: local
 
