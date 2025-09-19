@@ -1,5 +1,6 @@
 use axum::{
     extract::{ws::WebSocketUpgrade, State},
+    http::StatusCode,
     response::Response,
     routing::{get, post},
     Json, Router,
@@ -45,92 +46,50 @@ async fn main() {
 }
 
 async fn handle_order_execution(
-    ws: WebSocketUpgrade,
-    State(connections): State<WebSocketConnections>,
+    State(_connections): State<WebSocketConnections>,
     Json(payload): Json<OrderRequest>,
-) -> Response {
+) -> Result<Json<serde_json::Value>, StatusCode> {
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     let order_id = uuid::Uuid::new_v4().to_string();
 
-    ws.on_upgrade(move |socket| async move {
-        let (mut sender, _receiver) = socket.split();
-        
-        let pending_update = serde_json::json!({
-            "order_id": order_id,
-            "status": "pending"
-        });
-        
-        let _ = sender.send(axum::extract::ws::Message::Text(pending_update.to_string())).await;
-        
-        {
-            let mut conns = connections.write().await;
-            conns.insert(order_id.clone(), sender);
-        }
-        
-        let redis_client = Client::open(redis_url.clone()).unwrap();
-        let mut conn = redis_client.get_async_connection().await.unwrap();
-        
-        let order_data = serde_json::json!({
-            "order_id": order_id,
-            "token_in": payload.token_in,
-            "token_out": payload.token_out,
-            "amount": payload.amount,
-            "order_type": payload.order_type
-        });
-        
-        let _: String = conn.xadd("order_stream", "*", &[("order_data", order_data.to_string().as_str())]).await.unwrap();
-    })
+    let max_slippage_decimal = payload.max_slippage.unwrap_or(0.05);
+    if max_slippage_decimal > 0.5 || max_slippage_decimal < 0.01 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let redis_client = Client::open(redis_url.clone()).unwrap();
+    let mut conn = redis_client.get_async_connection().await.unwrap();
+    
+    let order_data = serde_json::json!({
+        "order_id": order_id,
+        "token_in": payload.token_in,
+        "token_out": payload.token_out,
+        "amount": payload.amount,
+        "order_type": payload.order_type,
+        "max_slippage": max_slippage_decimal * 100.0
+    });
+    
+    let _: String = conn.xadd("order_stream", "*", &[("order_data", order_data.to_string().as_str())]).await.unwrap();
+
+    Ok(Json(serde_json::json!({
+        "order_id": order_id,
+        "status": "pending"
+    })))
 }
 
 async fn handle_websocket_upgrade(
     ws: WebSocketUpgrade,
     State(connections): State<WebSocketConnections>,
 ) -> Response {
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     ws.on_upgrade(|socket| async move {
-        let (mut sender, mut receiver) = socket.split();
+        let (sender, mut receiver) = socket.split();
         
         if let Some(msg) = receiver.next().await {
             if let Ok(axum::extract::ws::Message::Text(text)) = msg {
-                if let Ok(payload) = serde_json::from_str::<OrderRequest>(&text) {
-                    let max_slippage_decimal = payload.max_slippage.unwrap_or(0.05);
-                    let max_slippage_percentage = max_slippage_decimal * 100.0;
-                    
-                    if max_slippage_decimal > 0.5 || max_slippage_decimal < 0.01 {
-                        let error_response = serde_json::json!({
-                            "error": "Invalid slippage. Must be between 0.01 and 0.5 (e.g., 0.05 for 5%)"
-                        });
-                        let _ = sender.send(axum::extract::ws::Message::Text(error_response.to_string())).await;
-                        return;
-                    }
-                    
-                    let order_id = uuid::Uuid::new_v4().to_string();
-                    
-                    let pending_update = serde_json::json!({
-                        "order_id": order_id,
-                        "status": "pending"
-                    });
-                    
-                    let _ = sender.send(axum::extract::ws::Message::Text(pending_update.to_string())).await;
-                    
-                    {
-                        let mut conns = connections.write().await;
-                        conns.insert(order_id.clone(), sender);
-                    }
-                    
-                    let redis_client = Client::open(redis_url.clone()).unwrap();
-                    let mut conn = redis_client.get_async_connection().await.unwrap();
-                    
-                    let order_data = serde_json::json!({
-                        "order_id": order_id,
-                        "token_in": payload.token_in,
-                        "token_out": payload.token_out,
-                        "amount": payload.amount,
-                        "order_type": payload.order_type,
-                        "max_slippage": max_slippage_percentage
-                    });
-                    
-                    let _: String = conn.xadd("order_stream", "*", &[("order_data", order_data.to_string().as_str())]).await.unwrap();
+                let order_id = text.trim();
+                {
+                    let mut conns = connections.write().await;
+                    conns.insert(order_id.to_string(), sender);
                 }
             }
         }

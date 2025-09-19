@@ -15,10 +15,12 @@ impl OrderProcessor {
         amount: f64,
         max_slippage: f64,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        
-        
-        
+                
+        // Small delay to ensure WebSocket connection is established
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        // Send pending status to acknowledge order receipt
         Self::send_status(status_tx, order_id, "pending", None, None, None).await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         println!("   pending...");
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         Self::send_status(status_tx, order_id, "routing", None, None, None).await?;
