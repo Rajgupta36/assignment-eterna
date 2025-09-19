@@ -11,24 +11,24 @@ class AcknowledgmentTester {
 
   async createWebSocketUpgrade(orderId) {
     return new Promise((resolve, reject) => {
-      console.log(`  → Initiating HTTP GET upgrade request for order: ${orderId}`);
+      console.log(`Upgrading to WebSocket for order: ${orderId}`);
       
       const ws = new WebSocket(WS_URL);
       
       ws.on('open', () => {
-        console.log(`  → WebSocket connection established for order: ${orderId}`);
+        console.log(`WebSocket connected for order: ${orderId}`);
         ws.send(orderId);
-        console.log(`  → Order ID sent for registration: ${orderId}`);
+        console.log(`Order ID registered: ${orderId}`);
         resolve(ws);
       });
 
       ws.on('error', (error) => {
-        console.error(`  → WebSocket error for order ${orderId}:`, error.message);
+        console.error(`WebSocket error for order ${orderId}:`, error.message);
         reject(error);
       });
 
       ws.on('close', (code, reason) => {
-        console.log(`  → WebSocket closed for order ${orderId}: code=${code}, reason=${reason}`);
+        console.log(`WebSocket closed for order ${orderId}: code=${code}`);
       });
     });
   }
@@ -48,22 +48,19 @@ class AcknowledgmentTester {
       const startTime = Date.now();
 
       try {
-        console.log('Submitting order via HTTP POST...');
+        console.log('Submitting order...');
         const response = await axios.post(`${API_URL}/api/orders/execute`, order, {
           headers: { 'Content-Type': 'application/json' }, timeout: 5000
         });
         orderId = response.data.order_id;
         console.log(`Order ID: ${orderId}`);
-        console.log(`HTTP Response: ${response.status} ${response.statusText}`);
 
-        console.log('Now upgrading to WebSocket via HTTP GET...');
         const ws = await this.createWebSocketUpgrade(orderId);
-        console.log(`WebSocket upgrade completed for order: ${orderId}`);
 
         ws.on('message', (data) => {
           try {
             const message = JSON.parse(data.toString());
-            console.log(`WebSocket message received for order ${orderId}:`, JSON.stringify(message, null, 2));
+            console.log(`Status update: ${message.status}`);
             
             if (message.order_id === orderId) {
               const status = message.status;

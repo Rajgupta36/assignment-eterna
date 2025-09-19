@@ -2,6 +2,10 @@
 
 A microservices-based order execution system that processes market orders with DEX routing and real-time WebSocket updates.
 
+## Documentation
+
+**[GitHub Documentation](https://github.com/your-username/order-execution-engine/blob/main/docs/README.md)** - Detailed technical documentation including design decisions, architecture patterns, and implementation details.
+
 ## Architecture
 
 ![System Architecture](./architecture.png)
@@ -83,11 +87,53 @@ Monitors Redis for final order statuses and stores confirmed/failed orders in Po
 
 ## Tech Stack
 
-- **Rust** - All services written in Rust
+- **Rust** - All services written in Rust for performance and memory safety
 - **Axum** - Web framework for backend
 - **Redis** - Message streaming between services
 - **PostgreSQL** - Order persistence
 - **Docker** - Containerization
+
+## Design Decisions
+
+### Technology Choices
+
+**Rust for Backend Services**
+- **Performance**: Rust provides near C-level performance with memory safety
+- **Concurrency**: Excellent async/await support for handling multiple orders simultaneously
+- **Reliability**: Compile-time guarantees prevent runtime errors in financial operations
+- **Ecosystem**: Growing web framework ecosystem with Axum for high-performance HTTP servers
+
+**Redis Streams for Inter-Service Communication**
+- **Reliability**: Streams provide guaranteed message delivery and persistence
+- **Scalability**: Multiple consumers can process messages without losing data
+- **Order Processing**: Perfect for order lifecycle management with status updates
+- **Real-time**: Enables real-time status broadcasting to WebSocket clients
+
+**Diesel ORM for Database Operations**
+- **Type Safety**: Compile-time SQL query validation prevents runtime database errors
+- **Performance**: Zero-cost abstractions with direct SQL generation
+- **Migration Management**: Built-in schema migrations for database evolution
+- **PostgreSQL Integration**: Native support for advanced PostgreSQL features
+
+**WebSocket for Real-time Updates**
+- **Low Latency**: Direct connection for instant status updates
+- **Bidirectional**: Allows client registration and server push notifications
+- **HTTP Upgrade**: Seamless upgrade from HTTP POST to WebSocket connection
+- **Connection Management**: Efficient handling of multiple concurrent connections
+
+### Architecture Patterns
+
+**Microservices Architecture**
+- **Separation of Concerns**: Each service handles specific domain logic
+- **Independent Deployment**: Services can be updated and scaled independently
+- **Fault Isolation**: Failure in one service doesn't affect others
+- **Technology Flexibility**: Each service can use optimal technology stack
+
+**Event-Driven Communication**
+- **Loose Coupling**: Services communicate through events rather than direct calls
+- **Asynchronous Processing**: Non-blocking message passing between services
+- **Scalability**: Easy to add new consumers or modify processing logic
+- **Audit Trail**: All events are logged for debugging and compliance
 
 ## Testing
 
@@ -115,12 +161,12 @@ node integration-tests.js
 - **Comprehensive Logging**: Detailed visibility into HTTP-to-WebSocket upgrade process
 
 ### Test Coverage
-- ✅ Single order acknowledgment tests
-- ✅ Concurrent order processing (3+ orders)
-- ✅ WebSocket connection and reconnection
-- ✅ Slippage validation testing
-- ✅ Error handling and timeout scenarios
-- ✅ Complete order lifecycle validation
+- Single order acknowledgment tests
+- Concurrent order processing (3+ orders)
+- WebSocket connection and reconnection
+- Slippage validation testing
+- Error handling and timeout scenarios
+- Complete order lifecycle validation
 
 ### Manual API Usage
 ```bash

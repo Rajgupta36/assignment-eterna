@@ -16,9 +16,7 @@ impl OrderProcessor {
         max_slippage: f64,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 
-        // Small delay to ensure WebSocket connection is established
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-        // Send pending status to acknowledge order receipt
         Self::send_status(status_tx, order_id, "pending", None, None, None).await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         println!("   pending...");
@@ -147,7 +145,6 @@ impl OrderProcessor {
     }
 
     fn simulate_price_movement() -> f64 {
-        // Generate realistic price movement between -2% and +2%
         let movement = (rand::random::<f64>() - 0.5) * 4.0;
         movement
     }
