@@ -85,6 +85,17 @@ async fn handle_websocket_upgrade(
         if let Some(msg) = receiver.next().await {
             if let Ok(axum::extract::ws::Message::Text(text)) = msg {
                 if let Ok(payload) = serde_json::from_str::<OrderRequest>(&text) {
+                    let max_slippage_decimal = payload.max_slippage.unwrap_or(0.05);
+                    let max_slippage_percentage = max_slippage_decimal * 100.0;
+                    
+                    if max_slippage_decimal > 0.5 || max_slippage_decimal < 0.01 {
+                        let error_response = serde_json::json!({
+                            "error": "Invalid slippage. Must be between 0.01 and 0.5 (e.g., 0.05 for 5%)"
+                        });
+                        let _ = sender.send(axum::extract::ws::Message::Text(error_response.to_string())).await;
+                        return;
+                    }
+                    
                     let order_id = uuid::Uuid::new_v4().to_string();
                     
                     let pending_update = serde_json::json!({
@@ -107,7 +118,8 @@ async fn handle_websocket_upgrade(
                         "token_in": payload.token_in,
                         "token_out": payload.token_out,
                         "amount": payload.amount,
-                        "order_type": payload.order_type
+                        "order_type": payload.order_type,
+                        "max_slippage": max_slippage_percentage
                     });
                     
                     let _: String = conn.xadd("order_stream", "*", &[("order_data", order_data.to_string().as_str())]).await.unwrap();

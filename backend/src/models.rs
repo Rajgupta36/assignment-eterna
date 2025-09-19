@@ -6,4 +6,5 @@ pub struct OrderRequest {
     pub token_out: String,
     pub amount: f64,
     pub order_type: String,
+    pub max_slippage: Option<f64>,
 }
