@@ -18,7 +18,12 @@ type WebSocketConnections = Arc<RwLock<HashMap<String, futures_util::stream::Spl
 
 #[tokio::main]
 async fn main() {
-    let redis_client = Client::open("redis://127.0.0.1:6379").unwrap();
+    dotenvy::dotenv().ok();
+    
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let server_port = std::env::var("SERVER_PORT").unwrap_or_else(|_| "3000".to_string());
+    
+    let redis_client = Client::open(redis_url.clone()).unwrap();
     let connections: WebSocketConnections = Arc::new(RwLock::new(HashMap::new()));
     
     let connections_clone = connections.clone();
@@ -32,8 +37,9 @@ async fn main() {
         .with_state(connections)
         .layer(CorsLayer::permissive());
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    println!("Server running on http://0.0.0.0:3000");
+    let bind_address = format!("0.0.0.0:{}", server_port);
+    let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
+    println!("Server running on http://{}", bind_address);
     
     axum::serve(listener, app).await.unwrap();
 }
@@ -43,6 +49,7 @@ async fn handle_order_execution(
     State(connections): State<WebSocketConnections>,
     Json(payload): Json<OrderRequest>,
 ) -> Response {
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     let order_id = uuid::Uuid::new_v4().to_string();
 
     ws.on_upgrade(move |socket| async move {
@@ -60,7 +67,7 @@ async fn handle_order_execution(
             conns.insert(order_id.clone(), sender);
         }
         
-        let redis_client = Client::open("redis://127.0.0.1:6379").unwrap();
+        let redis_client = Client::open(redis_url.clone()).unwrap();
         let mut conn = redis_client.get_async_connection().await.unwrap();
         
         let order_data = serde_json::json!({
@@ -79,6 +86,7 @@ async fn handle_websocket_upgrade(
     ws: WebSocketUpgrade,
     State(connections): State<WebSocketConnections>,
 ) -> Response {
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     ws.on_upgrade(|socket| async move {
         let (mut sender, mut receiver) = socket.split();
         
@@ -110,7 +118,7 @@ async fn handle_websocket_upgrade(
                         conns.insert(order_id.clone(), sender);
                     }
                     
-                    let redis_client = Client::open("redis://127.0.0.1:6379").unwrap();
+                    let redis_client = Client::open(redis_url.clone()).unwrap();
                     let mut conn = redis_client.get_async_connection().await.unwrap();
                     
                     let order_data = serde_json::json!({

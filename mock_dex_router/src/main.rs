@@ -16,10 +16,13 @@ use tokio::sync::Semaphore;
 
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
+    
     println!("Mock DEX Router starting...");
     println!("Connecting to Redis...");
     
-    let redis_handler = match RedisHandler::new("redis://127.0.0.1:6379") {
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_handler = match RedisHandler::new(&redis_url) {
         Ok(handler) => handler,
         Err(e) => {
             eprintln!("Failed to create Redis handler: {}", e);

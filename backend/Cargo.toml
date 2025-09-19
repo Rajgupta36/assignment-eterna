@@ -16,3 +16,4 @@ futures-util = "0.3"
 redis = { version = "0.24", features = ["tokio-comp"] }
 tokio-stream = "0.1"
 serde-redis = "0.14.0"
+dotenvy = "0.15"
