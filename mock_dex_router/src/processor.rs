@@ -13,16 +13,9 @@ impl OrderProcessor {
         _token_in: &str,
         _token_out: &str,
         amount: f64,
+        max_slippage: f64,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         
-        let status_update = StatusUpdate {
-            order_id: order_id.to_string(),
-            status: "pending".to_string(),
-            tx_hash: None,
-            reason: None,
-        };
-        status_tx.send(status_update).await?;
-        println!("   pending...");
         
         let status_update = StatusUpdate {
             order_id: order_id.to_string(),
@@ -46,6 +39,28 @@ impl OrderProcessor {
         };
         
         println!("   best: {} {:.4}", best_dex, best_price);
+        
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        
+        let price_movement = Self::simulate_price_movement();
+        let final_price = best_price * (1.0 + price_movement / 100.0);
+        let slippage = price_movement.abs();
+        
+        println!("   price moved: {:.2}%", price_movement);
+        println!("   final price: {:.4}", final_price);
+        
+        if slippage > max_slippage {
+            let reason = format!("Price moved {:.2}% (max allowed: {:.2}%)", slippage, max_slippage);
+            let status_update = StatusUpdate {
+                order_id: order_id.to_string(),
+                status: "failed".to_string(),
+                tx_hash: None,
+                reason: Some(reason.clone()),
+            };
+            status_tx.send(status_update).await?;
+            println!("   fail");
+            return Ok(());
+        }
         
         let status_update = StatusUpdate {
             order_id: order_id.to_string(),
@@ -100,6 +115,11 @@ impl OrderProcessor {
         Ok(())
     }
 
+    fn simulate_price_movement() -> f64 {
+        let movement = (rand::random::<f64>() - 0.5) * 10.0;
+        movement
+    }
+
     pub async fn spawn_order_task(
         router: Arc<MockDexRouter>,
         semaphore: Arc<tokio::sync::Semaphore>,
@@ -108,6 +128,7 @@ impl OrderProcessor {
         token_in: String,
         token_out: String,
         amount: f64,
+        max_slippage: f64,
     ) {
         tokio::spawn(async move {
             let _permit = match semaphore.acquire().await {
@@ -120,7 +141,7 @@ impl OrderProcessor {
             
             println!("start: {}", order_id);
             
-            if let Err(e) = Self::process_order_with_channel(&router, &status_tx, &order_id, &token_in, &token_out, amount).await {
+            if let Err(e) = Self::process_order_with_channel(&router, &status_tx, &order_id, &token_in, &token_out, amount, max_slippage).await {
                 println!("proc err {}: {}", order_id, e);
             }
             

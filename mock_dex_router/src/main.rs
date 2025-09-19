@@ -77,6 +77,7 @@ async fn main() {
                                 message.token_in,
                                 message.token_out,
                                 message.amount,
+                                message.max_slippage,
                             ).await;
                         }
                     }

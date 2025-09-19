@@ -50,12 +50,14 @@ impl StreamParser {
                                                             order_data.get("token_out").and_then(|v| v.as_str()),
                                                             order_data.get("amount").and_then(|v| v.as_f64()),
                                                         ) {
+                                                            let max_slippage = order_data.get("max_slippage").and_then(|v| v.as_f64()).unwrap_or(5.0);
                                                             parsed_messages.push(ParsedMessage {
                                                                 message_id,
                                                                 order_id: order_id.to_string(),
                                                                 token_in: token_in.to_string(),
                                                                 token_out: token_out.to_string(),
                                                                 amount,
+                                                                max_slippage,
                                                             });
                                                         } else {
                                                             println!("missing fields: {:?}", order_data);
@@ -93,4 +95,5 @@ pub struct ParsedMessage {
     pub token_in: String,
     pub token_out: String,
     pub amount: f64,
+    pub max_slippage: f64,
 }
