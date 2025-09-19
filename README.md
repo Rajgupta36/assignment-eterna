@@ -138,7 +138,7 @@ curl -X POST http://localhost:3000/api/orders/execute \
 # Response: {"order_id": "uuid-string"}
 
 # Step 2: Connect to WebSocket and send order ID as plain text
-wscat -c ws://localhost:3000/api/orders/execute
+wscat -c ws://localhost:3000/api/orders/execute or you can use get request with upgrade related headers
 # Then send the order ID (not JSON, just the UUID string)
 ```
 
