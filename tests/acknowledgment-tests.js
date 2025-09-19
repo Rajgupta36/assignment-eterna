@@ -11,15 +11,11 @@ class AcknowledgmentTester {
 
   async testOrderWithFullAcknowledgment() {
     console.log('\n=== Single Order Test ===');
-    
     this.stats.total += 1;
     
     const order = {
-      token_in: 'SOL',
-      token_out: 'USDC', 
-      amount: 10.5,
-      order_type: 'market',
-      max_slippage: 0.03
+      token_in: 'SOL', token_out: 'USDC', amount: 10.5,
+      order_type: 'market', max_slippage: 0.03
     };
 
     return new Promise((resolve, reject) => {
@@ -32,10 +28,8 @@ class AcknowledgmentTester {
         try {
           console.log('Submitting order...');
           const response = await axios.post(`${API_URL}/api/orders/execute`, order, {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 5000
+            headers: { 'Content-Type': 'application/json' }, timeout: 5000
           });
-
           orderId = response.data.order_id;
           console.log(`Order ID: ${orderId}`);
           ws.send(orderId);
@@ -49,11 +43,9 @@ class AcknowledgmentTester {
       ws.on('message', (data) => {
         try {
           const message = JSON.parse(data.toString());
-          
           if (message.order_id === orderId) {
             const status = message.status;
             statusSequence.push(status);
-            
             console.log(`Status: ${status}`);
             
             if (status === 'pending') console.log('  -> Pending');
@@ -82,7 +74,6 @@ class AcknowledgmentTester {
               ws.close();
               resolve({ orderId, status: 'failed', reason: message.reason });
             }
-
             this.stats.times.push(Date.now() - startTime);
           }
         } catch (error) {
@@ -97,31 +88,20 @@ class AcknowledgmentTester {
         reject(error);
       });
 
-      setTimeout(() => {
-        ws.close();
-        reject(new Error('Test timeout'));
-      }, 30000);
+      setTimeout(() => { ws.close(); reject(new Error('Test timeout')); }, 30000);
     });
   }
 
   async testConcurrentOrdersWithAcknowledgment(count = 3) {
     console.log(`\n=== ${count} Concurrent Orders ===`);
-    
     this.stats.total += count;
-    const orders = [];
-    for (let i = 0; i < count; i++) {
-      orders.push({
-        token_in: 'SOL',
-        token_out: 'USDC',
-        amount: Math.random() * 20 + 1,
-        order_type: 'market',
-        max_slippage: 0.02 + (Math.random() * 0.03)
-      });
-    }
+    
+    const orders = Array.from({ length: count }, () => ({
+      token_in: 'SOL', token_out: 'USDC', amount: Math.random() * 20 + 1,
+      order_type: 'market', max_slippage: 0.02 + (Math.random() * 0.03)
+    }));
 
-    const promises = orders.map((order, index) => 
-      this.testSingleOrder(order, index + 1)
-    );
+    const promises = orders.map((order, index) => this.testSingleOrder(order, index + 1));
 
     try {
       const results = await Promise.all(promises);
@@ -146,10 +126,8 @@ class AcknowledgmentTester {
         try {
           console.log(`Order ${orderNumber}: Submitting...`);
           const response = await axios.post(`${API_URL}/api/orders/execute`, order, {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 10000
+            headers: { 'Content-Type': 'application/json' }, timeout: 10000
           });
-
           orderId = response.data.order_id;
           console.log(`Order ${orderNumber}: Submitted (${orderId.slice(0, 8)}...)`);
           ws.send(orderId);
@@ -171,21 +149,11 @@ class AcknowledgmentTester {
             if (message.status === 'confirmed') {
               this.stats.acked++;
               ws.close();
-              resolve({
-                orderNumber,
-                orderId,
-                status: message.status,
-                responseTime
-              });
+              resolve({ orderNumber, orderId, status: message.status, responseTime });
             } else if (message.status === 'failed') {
               this.stats.failed++;
               ws.close();
-              resolve({
-                orderNumber,
-                orderId,
-                status: message.status,
-                responseTime
-              });
+              resolve({ orderNumber, orderId, status: message.status, responseTime });
             }
           }
         } catch (error) {
@@ -200,39 +168,29 @@ class AcknowledgmentTester {
         reject(error);
       });
 
-      setTimeout(() => {
-        ws.close();
-        reject(new Error(`Order ${orderNumber} timeout`));
-      }, 30000);
+      setTimeout(() => { ws.close(); reject(new Error(`Order ${orderNumber} timeout`)); }, 30000);
     });
   }
 
   async testAcknowledgmentTimeout() {
     console.log('\n=== Timeout Test ===');
-    
     this.stats.total += 1;
     
     return new Promise((resolve) => {
       const ws = new WebSocket(WS_URL);
-      let acknowledged = false;
 
       ws.on('open', async () => {
         try {
           const order = {
-            token_in: 'SOL',
-            token_out: 'USDC',
-            amount: 0.001,
-            order_type: 'market',
-            max_slippage: 0.01
+            token_in: 'SOL', token_out: 'USDC', amount: 0.001,
+            order_type: 'market', max_slippage: 0.01
           };
 
           const response = await axios.post(`${API_URL}/api/orders/execute`, order, {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 5000
+            headers: { 'Content-Type': 'application/json' }, timeout: 5000
           });
 
           const orderId = response.data.order_id;
-          acknowledged = true;
           console.log(`Order submitted: ${orderId}`);
           ws.send(orderId);
 

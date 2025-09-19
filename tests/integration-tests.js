@@ -7,8 +7,6 @@ const WS_URL = 'ws://localhost:3000/api/orders/execute';
 class IntegrationTester {
   constructor() {
     this.results = { total: 0, passed: 0, failed: 0, orders: { total: 0, success: 0, failed: 0 } };
-
-    
   }
 
   async runFullIntegrationTest() {
@@ -32,24 +30,18 @@ class IntegrationTester {
 
   async testCompleteOrderLifecycle() {
     console.log('\n=== Order Lifecycle Test ===');
-    
     this.results.total++;
     
     try {
       const order = {
-        token_in: 'SOL',
-        token_out: 'USDC',
-        amount: 15.5,
-        order_type: 'market',
-        max_slippage: 0.04
+        token_in: 'SOL', token_out: 'USDC', amount: 15.5,
+        order_type: 'market', max_slippage: 0.04
       };
 
       const result = await this.executeOrder(order);
       
       const expectedStatuses = ['pending', 'routing', 'building', 'submitted', 'confirmed'];
-      const hasCompleteFlow = expectedStatuses.every(status => 
-        result.statusSequence.includes(status)
-      );
+      const hasCompleteFlow = expectedStatuses.every(status => result.statusSequence.includes(status));
 
       if (!hasCompleteFlow) {
         throw new Error(`Incomplete flow. Expected: ${expectedStatuses.join(', ')}, Got: ${result.statusSequence.join(', ')}`);
@@ -77,7 +69,6 @@ class IntegrationTester {
 
   async testConcurrentOrderFlows() {
     console.log('\n=== Concurrent Orders Test ===');
-    
     this.results.total++;
     
     try {
@@ -89,10 +80,7 @@ class IntegrationTester {
 
       console.log(`Submitting ${orders.length} orders...`);
       
-      const promises = orders.map((order, index) => 
-        this.executeOrder(order, index + 1)
-      );
-
+      const promises = orders.map((order, index) => this.executeOrder(order, index + 1));
       const results = await Promise.all(promises);
       
       const successful = results.filter(r => r.finalStatus === 'confirmed');
@@ -119,7 +107,6 @@ class IntegrationTester {
 
   async testErrorHandling() {
     console.log('\n=== Error Handling Test ===');
-    
     this.results.total++;
     
     try {
@@ -148,8 +135,7 @@ class IntegrationTester {
     for (const order of invalidOrders) {
       try {
         const response = await axios.post(`${API_URL}/api/orders/execute`, order, {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 5000
+          headers: { 'Content-Type': 'application/json' }, timeout: 5000
         });
         
         if (response.status === 200) {
@@ -167,17 +153,13 @@ class IntegrationTester {
     console.log('  Testing invalid tokens...');
     
     const invalidOrder = {
-      token_in: '',
-      token_out: 'USDC',
-      amount: 10,
-      order_type: 'market',
-      max_slippage: 0.03
+      token_in: '', token_out: 'USDC', amount: 10,
+      order_type: 'market', max_slippage: 0.03
     };
 
     try {
       const response = await axios.post(`${API_URL}/api/orders/execute`, invalidOrder, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 5000
+        headers: { 'Content-Type': 'application/json' }, timeout: 5000
       });
       
       if (response.status === 200) {
@@ -192,17 +174,13 @@ class IntegrationTester {
     console.log('  Testing zero amount...');
     
     const zeroOrder = {
-      token_in: 'SOL',
-      token_out: 'USDC',
-      amount: 0,
-      order_type: 'market',
-      max_slippage: 0.03
+      token_in: 'SOL', token_out: 'USDC', amount: 0,
+      order_type: 'market', max_slippage: 0.03
     };
 
     try {
       const response = await axios.post(`${API_URL}/api/orders/execute`, zeroOrder, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 5000
+        headers: { 'Content-Type': 'application/json' }, timeout: 5000
       });
       
       if (response.status === 200) {
@@ -215,7 +193,6 @@ class IntegrationTester {
 
   async testSystemResilience() {
     console.log('\n=== System Resilience Test ===');
-    
     this.results.total++;
     
     try {
@@ -235,11 +212,7 @@ class IntegrationTester {
   async testRapidConnections() {
     console.log('  Testing rapid connections...');
     
-    const promises = [];
-    for (let i = 0; i < 5; i++) {
-      promises.push(this.createConnection(i));
-    }
-    
+    const promises = Array.from({ length: 5 }, (_, i) => this.createConnection(i));
     const results = await Promise.allSettled(promises);
     const successful = results.filter(r => r.status === 'fulfilled').length;
     
@@ -255,10 +228,7 @@ class IntegrationTester {
       const ws = new WebSocket(WS_URL);
       
       ws.on('open', () => {
-        setTimeout(() => {
-          ws.close();
-          resolve(`Connection ${id} successful`);
-        }, 100);
+        setTimeout(() => { ws.close(); resolve(`Connection ${id} successful`); }, 100);
       });
       
       ws.on('error', (error) => {
@@ -320,8 +290,7 @@ class IntegrationTester {
 
       try {
         const response = await axios.post(`${API_URL}/api/orders/execute`, order, {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 10000
+          headers: { 'Content-Type': 'application/json' }, timeout: 10000
         });
 
         orderId = response.data.order_id;
@@ -355,12 +324,8 @@ class IntegrationTester {
               ws.close();
               
               resolve({
-                orderId,
-                statusSequence,
-                finalStatus,
-                executionPrice,
-                completionTime,
-                reason: message.reason
+                orderId, statusSequence, finalStatus,
+                executionPrice, completionTime, reason: message.reason
               });
             }
           }
@@ -369,9 +334,7 @@ class IntegrationTester {
         }
       });
 
-      ws.on('error', (error) => {
-        reject(error);
-      });
+      ws.on('error', (error) => { reject(error); });
 
       setTimeout(() => {
         ws.close();
