@@ -6,12 +6,12 @@ A microservices-based order execution system that processes market orders with D
 
 ![System Architecture](./architecture.png)
 
-This system consists of 5 services working together:
+This system consists of 4 services working together:
 
 - **[Backend](./backend/README.md)** - WebSocket API for order submission and status updates
 - **[Mock DEX Router](./mock_dex_router/README.md)** - Processes orders and simulates DEX interactions
 - **[Database Service](./db-service/README.md)** - Stores final order results in PostgreSQL
-- **[Tester](./tester/README.md)** - Node.js service for testing and monitoring
+- **[Tester](./tester/README.md)** - Node.js service for test.
 - **Infrastructure** - PostgreSQL database and Redis message broker
 
 
@@ -48,7 +48,7 @@ The system will be available at `http://localhost:3000`
 The system uses a two-step approach for order submission and real-time updates:
 
 1. **POST Request**: Client sends order data via HTTP POST to `/api/orders/execute`
-2. **WebSocket Connection**: Client connects to WebSocket at `/api/orders/status` and sends the order ID as plain text
+2. **WebSocket Connection**: Client connects to WebSocket at `/api/orders/execute` and sends the order ID as plain text
 3. **Real-time Updates**: Client receives status updates via WebSocket connection
 
 This approach separates order submission (HTTP) from status monitoring (WebSocket) for better reliability and easier client implementation. The WebSocket connection is registered by sending the order ID as a plain text message (not JSON).
@@ -86,20 +86,12 @@ Monitors Redis for final order statuses and stores confirmed/failed orders in Po
 
 ### Using the Tester Service
 ```bash
-cd tester
+cd tests
 npm install
 
-# Single order test
-npm start
+node acknowledgment-tests.js 
 
-# Concurrent orders test
-npm start concurrent 5
-
-# Stress test
-npm start stress 60
-
-# Automated test suite
-npm test
+node integration-tests.js 
 ```
 
 ### Manual API Usage
@@ -118,7 +110,7 @@ curl -X POST http://localhost:3000/api/orders/execute \
 # Response: {"order_id": "uuid-string", "status": "pending"}
 
 # Step 2: Connect to WebSocket and send order ID as plain text
-wscat -c ws://localhost:3000/api/orders/status
+wscat -c ws://localhost:3000/api/orders/execute
 # Then send the order ID (not JSON, just the UUID string)
 ```
 
@@ -139,37 +131,6 @@ You'll receive real-time status updates like:
 - 2-3 second execution time per order
 - Real-time WebSocket updates
 
-## Test Results
-
-The system has been tested and verified to work correctly:
-
-```
-📨 Event #1 (+191ms): {"status": "routing"}
-📨 Event #2 (+1044ms): {"status": "building"}  
-📨 Event #3 (+1545ms): {"status": "submitted", "tx_hash": "0x..."}
-📨 Event #4 (+2047ms): {"status": "confirmed", "execution_price": 218.06, "tx_hash": "0x..."}
-```
-
-✅ **All status updates are received in real-time via WebSocket**
-✅ **Final execution price is included in confirmed status**
-✅ **Transaction hash is provided for successful orders**
-
-## Troubleshooting
-
-### WebSocket Connection Issues
-
-**Problem**: No events received after connecting to WebSocket
-**Solution**: Make sure you send the order ID as **plain text**, not JSON:
-
-```javascript
-// ✅ Correct - send as plain text
-ws.send(orderId);
-
-// ❌ Wrong - don't send as JSON
-ws.send(JSON.stringify(orderId));
-```
-
-**Problem**: "Method Not Allowed" error
 **Solution**: Use separate endpoints:
 - POST `/api/orders/execute` for order submission
 - GET `/api/orders/status` for WebSocket connection
