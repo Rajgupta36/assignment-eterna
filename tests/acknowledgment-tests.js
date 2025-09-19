@@ -9,6 +9,30 @@ class AcknowledgmentTester {
     this.stats = { total: 0, acked: 0, failed: 0, times: [] };
   }
 
+  async createWebSocketUpgrade(orderId) {
+    return new Promise((resolve, reject) => {
+      console.log(`  → Initiating HTTP GET upgrade request for order: ${orderId}`);
+      
+      const ws = new WebSocket(WS_URL);
+      
+      ws.on('open', () => {
+        console.log(`  → WebSocket connection established for order: ${orderId}`);
+        ws.send(orderId);
+        console.log(`  → Order ID sent for registration: ${orderId}`);
+        resolve(ws);
+      });
+
+      ws.on('error', (error) => {
+        console.error(`  → WebSocket error for order ${orderId}:`, error.message);
+        reject(error);
+      });
+
+      ws.on('close', (code, reason) => {
+        console.log(`  → WebSocket closed for order ${orderId}: code=${code}, reason=${reason}`);
+      });
+    });
+  }
+
   async testOrderWithFullAcknowledgment() {
     console.log('\n=== Single Order Test ===');
     this.stats.total += 1;
@@ -18,77 +42,81 @@ class AcknowledgmentTester {
       order_type: 'market', max_slippage: 0.03
     };
 
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket(WS_URL);
+    return new Promise(async (resolve, reject) => {
       let orderId = null;
       let statusSequence = [];
       const startTime = Date.now();
 
-      ws.on('open', async () => {
-        try {
-          console.log('Submitting order...');
-          const response = await axios.post(`${API_URL}/api/orders/execute`, order, {
-            headers: { 'Content-Type': 'application/json' }, timeout: 5000
-          });
-          orderId = response.data.order_id;
-          console.log(`Order ID: ${orderId}`);
-          ws.send(orderId);
-        } catch (error) {
-          console.error('Submission failed:', error.message);
+      try {
+        console.log('Submitting order via HTTP POST...');
+        const response = await axios.post(`${API_URL}/api/orders/execute`, order, {
+          headers: { 'Content-Type': 'application/json' }, timeout: 5000
+        });
+        orderId = response.data.order_id;
+        console.log(`Order ID: ${orderId}`);
+        console.log(`HTTP Response: ${response.status} ${response.statusText}`);
+
+        console.log('Now upgrading to WebSocket via HTTP GET...');
+        const ws = await this.createWebSocketUpgrade(orderId);
+        console.log(`WebSocket upgrade completed for order: ${orderId}`);
+
+        ws.on('message', (data) => {
+          try {
+            const message = JSON.parse(data.toString());
+            console.log(`WebSocket message received for order ${orderId}:`, JSON.stringify(message, null, 2));
+            
+            if (message.order_id === orderId) {
+              const status = message.status;
+              statusSequence.push(status);
+              console.log(`Status: ${status}`);
+              
+              if (status === 'pending') console.log('  -> Pending');
+              else if (status === 'routing') console.log('  -> Routing');
+              else if (status === 'building') console.log('  -> Building tx');
+              else if (status === 'submitted') {
+                console.log('  -> Submitted');
+                if (message.tx_hash) console.log(`  -> TX: ${message.tx_hash}`);
+              } else if (status === 'confirmed') {
+                console.log('  -> Confirmed!');
+                console.log(`  -> Price: $${message.execution_price}`);
+                console.log(`  -> TX: ${message.tx_hash}`);
+                
+                const totalTime = Date.now() - startTime;
+                console.log('\n--- Results ---');
+                console.log(`Total time: ${totalTime}ms`);
+                console.log(`Flow: ${statusSequence.join(' -> ')}`);
+                
+                this.stats.acked++;
+                ws.close();
+                resolve({ orderId, status: 'confirmed', totalTime });
+              } else if (status === 'failed') {
+                console.log('  -> Failed');
+                console.log(`  -> Error: ${message.reason}`);
+                this.stats.failed++;
+                ws.close();
+                resolve({ orderId, status: 'failed', reason: message.reason });
+              }
+              this.stats.times.push(Date.now() - startTime);
+            }
+          } catch (error) {
+            console.error('Parse error:', error.message);
+            reject(error);
+          }
+        });
+
+        ws.on('error', (error) => {
+          console.error('WebSocket error:', error.message);
           this.stats.failed++;
           reject(error);
-        }
-      });
+        });
 
-      ws.on('message', (data) => {
-        try {
-          const message = JSON.parse(data.toString());
-          if (message.order_id === orderId) {
-            const status = message.status;
-            statusSequence.push(status);
-            console.log(`Status: ${status}`);
-            
-            if (status === 'pending') console.log('  -> Pending');
-            else if (status === 'routing') console.log('  -> Routing');
-            else if (status === 'building') console.log('  -> Building tx');
-            else if (status === 'submitted') {
-              console.log('  -> Submitted');
-              if (message.tx_hash) console.log(`  -> TX: ${message.tx_hash}`);
-            } else if (status === 'confirmed') {
-              console.log('  -> Confirmed!');
-              console.log(`  -> Price: $${message.execution_price}`);
-              console.log(`  -> TX: ${message.tx_hash}`);
-              
-              const totalTime = Date.now() - startTime;
-              console.log('\n--- Results ---');
-              console.log(`Total time: ${totalTime}ms`);
-              console.log(`Flow: ${statusSequence.join(' -> ')}`);
-              
-              this.stats.acked++;
-              ws.close();
-              resolve({ orderId, status: 'confirmed', totalTime });
-            } else if (status === 'failed') {
-              console.log('  -> Failed');
-              console.log(`  -> Error: ${message.reason}`);
-              this.stats.failed++;
-              ws.close();
-              resolve({ orderId, status: 'failed', reason: message.reason });
-            }
-            this.stats.times.push(Date.now() - startTime);
-          }
-        } catch (error) {
-          console.error('Parse error:', error.message);
-          reject(error);
-        }
-      });
+        setTimeout(() => { ws.close(); reject(new Error('Test timeout')); }, 30000);
 
-      ws.on('error', (error) => {
-        console.error('WebSocket error:', error.message);
+      } catch (error) {
+        console.error('Order submission failed:', error.message);
         this.stats.failed++;
         reject(error);
-      });
-
-      setTimeout(() => { ws.close(); reject(new Error('Test timeout')); }, 30000);
+      }
     });
   }
 
@@ -240,7 +268,6 @@ class AcknowledgmentTester {
     console.log(`Total: ${this.stats.total}`);
     console.log(`Acked: ${this.stats.acked}`);
     console.log(`Failed: ${this.stats.failed}`);
-    console.log(`Success: ${((this.stats.acked / this.stats.total) * 100).toFixed(1)}%`);
     
     if (this.stats.times.length > 0) {
       const avgTime = this.stats.times.reduce((a, b) => a + b, 0) / this.stats.times.length;

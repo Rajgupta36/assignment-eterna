@@ -53,6 +53,13 @@ The system uses a two-step approach for order submission and real-time updates:
 
 This approach separates order submission (HTTP) from status monitoring (WebSocket) for better reliability and easier client implementation. The WebSocket connection is registered by sending the order ID as a plain text message (not JSON).
 
+### WebSocket Connection Process
+The test suite demonstrates the complete HTTP-to-WebSocket upgrade process:
+- HTTP POST order submission with detailed response logging
+- HTTP GET upgrade request with WebSocket key generation
+- WebSocket connection establishment and order ID registration
+- Real-time status update monitoring with comprehensive logging
+
 ## Status Updates
 
 Orders progress through these states:
@@ -84,15 +91,36 @@ Monitors Redis for final order statuses and stores confirmed/failed orders in Po
 
 ## Testing
 
-### Using the Tester Service
+### Comprehensive Test Suite
+The system includes a comprehensive test suite with acknowledgment handling and detailed WebSocket connection logging:
+
 ```bash
 cd tests
 npm install
 
-node acknowledgment-tests.js 
+# Run all tests
+node test-runner.js
 
+# Run specific test suites
+node acknowledgment-tests.js 
 node integration-tests.js 
 ```
+
+### Test Features
+- **HTTP POST Order Submission**: Validates order creation and response handling
+- **WebSocket Connection Upgrades**: Tests HTTP GET upgrade to WebSocket connections
+- **Real-time Status Tracking**: Monitors complete order lifecycle (pending → routing → building → submitted → confirmed)
+- **Concurrent Order Processing**: Tests multiple simultaneous orders
+- **Error Handling**: Validates timeout scenarios and failure recovery
+- **Comprehensive Logging**: Detailed visibility into HTTP-to-WebSocket upgrade process
+
+### Test Coverage
+- ✅ Single order acknowledgment tests
+- ✅ Concurrent order processing (3+ orders)
+- ✅ WebSocket connection and reconnection
+- ✅ Slippage validation testing
+- ✅ Error handling and timeout scenarios
+- ✅ Complete order lifecycle validation
 
 ### Manual API Usage
 ```bash
@@ -107,11 +135,21 @@ curl -X POST http://localhost:3000/api/orders/execute \
     "max_slippage": 0.05
   }'
 
-# Response: {"order_id": "uuid-string", "status": "pending"}
+# Response: {"order_id": "uuid-string"}
 
 # Step 2: Connect to WebSocket and send order ID as plain text
 wscat -c ws://localhost:3000/api/orders/execute
 # Then send the order ID (not JSON, just the UUID string)
+```
+
+### Running Tests
+```bash
+# Run comprehensive test suite
+cd tests && node test-runner.js
+
+# Individual test suites
+node acknowledgment-tests.js    # Acknowledgment and timeout tests
+node integration-tests.js       # Full integration and lifecycle tests
 ```
 
 ### Example WebSocket Messages

@@ -62,7 +62,6 @@ async fn handle_order_execution(
 
     Ok(Json(serde_json::json!({
         "order_id": order_id,
-        "status": "pending"
     })))
 }
 
