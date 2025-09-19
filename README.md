@@ -29,6 +29,20 @@ Limit Orders: Add price monitoring and maintain an order book (array) to store a
 
 Sniper Orders: Detect new token launches and execute trades instantly using automated event monitoring, with a dedicated processing stream for maximum speed.
 
+## Design Decisions
+
+**Redis Streams** - Used for sending and receiving data between services through streams channels. Provides reliable message delivery and enables real-time status updates and persistance storage.
+- **Backend** - Publishes orders to Redis streams and listens for status updates
+- **Mock DEX Router** - Consumes orders from streams and publishes status updates
+- **Database Service** - Monitors streams for final order statuses
+
+**Rust** - Chosen for fast and asynchronous processing. Offers memory safety, high performance, and excellent concurrency support for handling multiple orders simultaneously.
+- **Backend** - WebSocket API server with Axum framework
+- **Mock DEX Router** - Order processing and DEX simulation
+- **Database Service** - Redis monitoring and PostgreSQL storage
+
+**Diesel ORM** - Used for database storage operations. Provides type-safe database interactions with compile-time query validation and efficient PostgreSQL integration.
+- **Database Service** - Handles all PostgreSQL operations and schema migrations
 
 ## Quick Start
 
