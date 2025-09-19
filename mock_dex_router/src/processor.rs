@@ -16,45 +16,48 @@ impl OrderProcessor {
         max_slippage: f64,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         
-        Self::send_status(status_tx, order_id, "pending", None, None).await?;
+        
+        
+        Self::send_status(status_tx, order_id, "pending", None, None, None).await?;
         println!("   pending...");
-        
-        Self::send_status(status_tx, order_id, "routing", None, None).await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        Self::send_status(status_tx, order_id, "routing", None, None, None).await?;
         println!("   routing...");
-        
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         let (best_dex, best_price) = Self::get_best_price(router, amount).await;
         println!("   best: {} {:.4}", best_dex, best_price);
         
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         
-        let slippage = Self::check_slippage(best_price, max_slippage).await;
+        let (slippage, final_price) = Self::check_slippage(best_price, max_slippage).await;
         if slippage > max_slippage {
             let reason = format!("Price moved {:.2}% (max allowed: {:.2}%)", slippage, max_slippage);
-            Self::send_status(status_tx, order_id, "failed", None, Some(&reason)).await?;
+            Self::send_status(status_tx, order_id, "failed", None, Some(&reason), None).await?;
             println!("   fail");
             println!("   why: {}", reason);
             return Ok(());
         }
         
-        Self::send_status(status_tx, order_id, "building", None, None).await?;
+        Self::send_status(status_tx, order_id, "building", None, None, None).await?;
         println!("   building...");
         
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         
         let tx_hash = format!("0x{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
-        Self::send_status(status_tx, order_id, "submitted", Some(&tx_hash), None).await?;
+        Self::send_status(status_tx, order_id, "submitted", Some(&tx_hash), None, None).await?;
         println!("   submitted...");
         
         tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
         
         let success = Self::execute_with_retry(status_tx, order_id, &tx_hash).await;
         if success {
-            Self::send_status(status_tx, order_id, "confirmed", Some(&tx_hash), None).await?;
+            Self::send_status(status_tx, order_id, "confirmed", Some(&tx_hash), None, Some(final_price)).await?;
             println!("   ok");
             println!("   tx: {}", tx_hash);
+            println!("   final price: {:.4}", final_price);
         } else {
             let reason = "Execution failed after 3 retry attempts";
-            Self::send_status(status_tx, order_id, "failed", None, Some(reason)).await?;
+            Self::send_status(status_tx, order_id, "failed", None, Some(reason), None).await?;
             println!("   fail");
             println!("   why: {}", reason);
         }
@@ -69,12 +72,14 @@ impl OrderProcessor {
         status: &str,
         tx_hash: Option<&str>,
         reason: Option<&str>,
+        execution_price: Option<f64>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let status_update = StatusUpdate {
             order_id: order_id.to_string(),
             status: status.to_string(),
             tx_hash: tx_hash.map(|s| s.to_string()),
             reason: reason.map(|s| s.to_string()),
+            execution_price,
         };
         status_tx.send(status_update).await?;
         Ok(())
@@ -94,15 +99,17 @@ impl OrderProcessor {
         }
     }
 
-    async fn check_slippage(best_price: f64, _max_slippage: f64) -> f64 {
+    async fn check_slippage(best_price: f64, max_slippage: f64) -> (f64, f64) {
         let price_movement = Self::simulate_price_movement();
-        let final_price = best_price * (1.0 + price_movement / 100.0);
         let slippage = price_movement.abs();
         
+        let final_price = best_price * (1.0 + price_movement / 100.0);
+        
         println!("   price moved: {:.2}%", price_movement);
+        println!("   max slippage: {:.2}%", max_slippage);
         println!("   final price: {:.4}", final_price);
         
-        slippage
+        (slippage, final_price)
     }
 
     async fn execute_with_retry(
@@ -138,7 +145,8 @@ impl OrderProcessor {
     }
 
     fn simulate_price_movement() -> f64 {
-        let movement = (rand::random::<f64>() - 0.5) * 10.0;
+        // Generate realistic price movement between -2% and +2%
+        let movement = (rand::random::<f64>() - 0.5) * 4.0;
         movement
     }
 

@@ -6,6 +6,7 @@ pub struct StatusUpdate {
     pub status: String,
     pub tx_hash: Option<String>,
     pub reason: Option<String>,
+    pub execution_price: Option<f64>,
 }
 
 impl StatusUpdate {
@@ -14,7 +15,8 @@ impl StatusUpdate {
             "order_id": self.order_id,
             "status": self.status,
             "tx_hash": self.tx_hash,
-            "reason": self.reason
+            "reason": self.reason,
+            "execution_price": self.execution_price
         })
     }
 }

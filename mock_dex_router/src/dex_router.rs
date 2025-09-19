@@ -10,17 +10,17 @@ impl MockDexRouter {
     }
 
     pub async fn get_raydium_quote(&self, _amount: u64) -> f64 {
-        sleep(Duration::from_millis(100)).await;
+        sleep(Duration::from_millis(200)).await;
         
-        let base_price = 0.95;
-        base_price * (0.98 + rand::random::<f64>() * 0.04)
+        let base_price = 220.0;
+        base_price * (0.995 + rand::random::<f64>() * 0.01)
     }
 
     pub async fn get_meteora_quote(&self, _amount: u64) -> f64 {
-        sleep(Duration::from_millis(150)).await;
+        sleep(Duration::from_millis(250)).await;
         
-        let base_price = 0.97;
-        base_price * (0.98 + rand::random::<f64>() * 0.04)
+        let base_price = 218.0;
+        base_price * (0.995 + rand::random::<f64>() * 0.01)
     }
 
     pub async fn execute_swap(&self, order: &Order, best_dex: &str) -> Result<(String, f64), String> {
@@ -40,7 +40,7 @@ impl MockDexRouter {
             _ => return Err(format!("Unknown DEX: {}", best_dex)),
         };
 
-        let executed_price = base_quote * (0.95 + rand::random::<f64>() * 0.1);
+        let executed_price = base_quote * (0.999 + rand::random::<f64>() * 0.002);
 
         Ok((tx_hash, executed_price))
     }
