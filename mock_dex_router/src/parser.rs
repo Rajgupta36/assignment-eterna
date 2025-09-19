@@ -6,84 +6,80 @@ impl StreamParser {
     pub fn parse_redis_stream_response(
         value: redis::Value,
     ) -> Result<Vec<ParsedMessage>, Box<dyn std::error::Error + Send + Sync>> {
-        match value {
-            redis::Value::Bulk(streams) => {
-                if streams.is_empty() {
-                    return Ok(vec![]);
-                }
-                
-                if let Some(redis::Value::Bulk(stream_data)) = streams.first() {
-                    if stream_data.len() >= 2 {
-                        if let redis::Value::Bulk(messages) = &stream_data[1] {
+        let messages = Self::extract_messages(value)?;
                             let mut parsed_messages = Vec::new();
                             
                             for message in messages {
-                                if let redis::Value::Bulk(message_data) = message {
-                                    if message_data.len() >= 2 {
-                                        let message_id = match &message_data[0] {
-                                            redis::Value::Data(id) => String::from_utf8_lossy(id).to_string(),
-                                            _ => continue,
-                                        };
-                                        
-                                        if let redis::Value::Bulk(fields_data) = &message_data[1] {
-                                            let mut fields = Vec::new();
-                                            for i in (0..fields_data.len()).step_by(2) {
-                                                if i + 1 < fields_data.len() {
-                                                    let key = match &fields_data[i] {
-                                                        redis::Value::Data(k) => String::from_utf8_lossy(k).to_string(),
-                                                        _ => continue,
-                                                    };
-                                                    let value = match &fields_data[i + 1] {
-                                                        redis::Value::Data(v) => String::from_utf8_lossy(v).to_string(),
-                                                        _ => continue,
-                                                    };
-                                                    fields.push((key, value));
-                                                }
-                                            }
-                                            
-                                            if let Some((_, order_json)) = fields.iter().find(|(key, _)| key == "order_data") {
-                                                match serde_json::from_str::<Value>(order_json) {
-                                                    Ok(order_data) => {
-                                                        if let (Some(order_id), Some(token_in), Some(token_out), Some(amount)) = (
-                                                            order_data.get("order_id").and_then(|v| v.as_str()),
-                                                            order_data.get("token_in").and_then(|v| v.as_str()),
-                                                            order_data.get("token_out").and_then(|v| v.as_str()),
-                                                            order_data.get("amount").and_then(|v| v.as_f64()),
-                                                        ) {
-                                                            let max_slippage = order_data.get("max_slippage").and_then(|v| v.as_f64()).unwrap_or(5.0);
-                                                            parsed_messages.push(ParsedMessage {
-                                                                message_id,
-                                                                order_id: order_id.to_string(),
-                                                                token_in: token_in.to_string(),
-                                                                token_out: token_out.to_string(),
-                                                                amount,
-                                                                max_slippage,
-                                                            });
-                                                        } else {
-                                                            println!("missing fields: {:?}", order_data);
-                                                        }
-                                                    }
-                                                    Err(e) => {
-                                                        println!("parse err: {}", e);
-                                                        println!("   raw: {}", order_json);
-                                                    }
-                                                }
-                                            } else {
-                                                println!("no order_data field");
-                                                println!("   fields: {:?}", fields.iter().map(|(k, _)| k).collect::<Vec<_>>());
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            return Ok(parsed_messages);
-                        }
+            if let Some(parsed) = Self::parse_message(message) {
+                parsed_messages.push(parsed);
+            }
+        }
+        
+        Ok(parsed_messages)
+    }
+
+    fn extract_messages(value: redis::Value) -> Result<Vec<redis::Value>, Box<dyn std::error::Error + Send + Sync>> {
+        let streams = match value {
+            redis::Value::Bulk(streams) if !streams.is_empty() => streams,
+            _ => return Ok(vec![]),
+        };
+
+        let stream_data = match &streams[0] {
+            redis::Value::Bulk(data) if data.len() >= 2 => &data[1],
+            _ => return Ok(vec![]),
+        };
+
+        match stream_data {
+            redis::Value::Bulk(messages) => Ok(messages.clone()),
+            _ => Ok(vec![]),
+        }
+    }
+
+    fn parse_message(message: redis::Value) -> Option<ParsedMessage> {
+        let message_data = match message {
+            redis::Value::Bulk(data) if data.len() >= 2 => data,
+            _ => return None,
+        };
+
+        let message_id = Self::get_string(&message_data[0])?;
+        let fields_data = match &message_data[1] {
+            redis::Value::Bulk(data) => data,
+            _ => return None,
+        };
+
+        let order_json = Self::find_order_data(fields_data)?;
+        let order_data: Value = serde_json::from_str(&order_json).ok()?;
+        
+        Some(ParsedMessage {
+            message_id,
+            order_id: order_data.get("order_id")?.as_str()?.to_string(),
+            token_in: order_data.get("token_in")?.as_str()?.to_string(),
+            token_out: order_data.get("token_out")?.as_str()?.to_string(),
+            amount: order_data.get("amount")?.as_f64()?,
+            max_slippage: order_data.get("max_slippage").and_then(|v| v.as_f64()).unwrap_or(5.0),
+        })
+    }
+
+    fn find_order_data(fields_data: &[redis::Value]) -> Option<String> {
+        for i in (0..fields_data.len()).step_by(2) {
+            if i + 1 < fields_data.len() {
+                if let (Some(key), Some(value)) = (
+                    Self::get_string(&fields_data[i]),
+                    Self::get_string(&fields_data[i + 1])
+                ) {
+                    if key == "order_data" {
+                        return Some(value);
                     }
                 }
-                Ok(vec![])
             }
-            _ => Ok(vec![]),
+        }
+        None
+    }
+
+    fn get_string(value: &redis::Value) -> Option<String> {
+        match value {
+            redis::Value::Data(data) => Some(String::from_utf8_lossy(data).to_string()),
+            _ => None,
         }
     }
 }
