@@ -1,0 +1,43 @@
+{
+  "name": "order-execution-tests",
+  "version": "1.0.0",
+  "description": "Comprehensive test suite for the Order Execution Engine with acknowledgment handling and performance metrics",
+  "type": "module",
+  "main": "test-runner.js",
+  "scripts": {
+    "test": "node test-runner.js",
+    "test:acknowledgment": "node test-runner.js acknowledgment",
+    "test:performance": "node test-runner.js performance",
+    "test:integration": "node test-runner.js integration",
+    "test:all": "node test-runner.js",
+    "help": "node test-runner.js --help"
+  },
+  "keywords": [
+    "testing",
+    "order-execution",
+    "websocket",
+    "performance",
+    "acknowledgment",
+    "integration-tests"
+  ],
+  "author": "Order Execution Engine Team",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.2",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "perf_hooks": "*"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/order-execution-engine"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/order-execution-engine/issues"
+  },
+  "homepage": "https://github.com/your-org/order-execution-engine#readme"
+}
