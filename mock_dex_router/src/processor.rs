@@ -17,6 +17,15 @@ impl OrderProcessor {
         
         let status_update = StatusUpdate {
             order_id: order_id.to_string(),
+            status: "pending".to_string(),
+            tx_hash: None,
+            reason: None,
+        };
+        status_tx.send(status_update).await?;
+        println!("   pending...");
+        
+        let status_update = StatusUpdate {
+            order_id: order_id.to_string(),
             status: "routing".to_string(),
             tx_hash: None,
             reason: None,
@@ -49,10 +58,22 @@ impl OrderProcessor {
         
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         
+        let tx_hash = format!("0x{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
+        
+        let status_update = StatusUpdate {
+            order_id: order_id.to_string(),
+            status: "submitted".to_string(),
+            tx_hash: Some(tx_hash.clone()),
+            reason: None,
+        };
+        status_tx.send(status_update).await?;
+        println!("   submitted...");
+        
+        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+        
         let success = rand::random::<f32>() > 0.2;
         
         if success {
-            let tx_hash = format!("0x{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
             let status_update = StatusUpdate {
                 order_id: order_id.to_string(),
                 status: "confirmed".to_string(),

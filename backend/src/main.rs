@@ -139,8 +139,10 @@ async fn listen_to_redis_updates(redis_client: Client, connections: WebSocketCon
                                     if let Some(sender) = conns.get_mut(order_id) {
                                         let _ = sender.send(axum::extract::ws::Message::Text(status_json_str.clone())).await;
                                         
-                                        if status_update.get("status").and_then(|v| v.as_str()) == Some("filled") {
-                                            conns.remove(order_id);
+                                        if let Some(status) = status_update.get("status").and_then(|v| v.as_str()) {
+                                            if status == "confirmed" || status == "failed" {
+                                                conns.remove(order_id);
+                                            }
                                         }
                                     }
                                 }
