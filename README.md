@@ -2,10 +2,6 @@
 
 A microservices-based order execution system that processes market orders with DEX routing and real-time WebSocket updates.
 
-## Documentation
-
-**[GitHub Documentation](https://github.com/your-username/order-execution-engine/blob/main/docs/README.md)** - Detailed technical documentation including design decisions, architecture patterns, and implementation details.
-
 ## Architecture
 
 ![System Architecture](./architecture.png)
