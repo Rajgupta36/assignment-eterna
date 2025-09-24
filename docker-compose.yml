@@ -39,12 +39,10 @@ services:
 
   # backend api service
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: raj96yt/dex_backend:latest
     container_name: dex_backend
     ports:
-      - "3000:3000"
+       - "3000:3000"
     environment:
       - SERVER_PORT=3000
       - REDIS_URL=redis://redis:6379
@@ -58,9 +56,7 @@ services:
 
   # mock dex router service
   mock_dex_router:
-    build:
-      context: ./mock_dex_router
-      dockerfile: Dockerfile
+    image: raj96yt/dex_router:latest
     container_name: dex_router
     environment:
       - REDIS_URL=redis://redis:6379
@@ -74,9 +70,7 @@ services:
 
   # Database service
   db_service:
-    build:
-      context: ./db-service
-      dockerfile: Dockerfile
+    image: raj96yt/dex_db_service:latest
     container_name: dex_db_service
     environment:
       - DATABASE_URL=postgres://postgres:password@postgres:5432/order_db
